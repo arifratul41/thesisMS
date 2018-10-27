@@ -17,6 +17,10 @@ namespace Microsoft.Samples.Kinect.BodyBasics
     using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
 
+    using Accord.Statistics.Models.Markov;
+    using Accord.Statistics.Models.Markov.Learning;
+    using Accord.Statistics.Models.Markov.Topology;
+
     /// <summary>
     /// Interaction logic for MainWindow
     /// </summary>
@@ -323,8 +327,12 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         double getAngle(CameraSpacePoint v1, CameraSpacePoint v2)
         {
             double dotProduct = (v1.X * v2.X) + (v1.Y * v2.Y) + (v1.Z * v2.Z);
-            //double mag1 = 
-            return 0.0;
+            double mag1 = (v1.X * v1.X) + (v1.Y * v1.Y) + (v1.Z * v1.Z);
+            double mag2 = (v2.X * v2.X) + (v2.Y * v2.Y) + (v2.Z * v2.Z);
+            mag1 = Math.Sqrt(mag1);
+            mag2 = Math.Sqrt(mag2);
+            double angle = Math.Acos(dotProduct / (mag1 * mag2));
+            return angle;
         }
         private void Reader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
         {
