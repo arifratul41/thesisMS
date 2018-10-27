@@ -9,6 +9,7 @@ namespace Microsoft.Samples.Kinect.BodyBasics
     using System;
     using System.Collections.Generic;
     using System.ComponentModel;
+    using System.Web.UI.DataVisualization.Charting;
     using System.Diagnostics;
     using System.Globalization;
     using System.IO;
@@ -122,6 +123,13 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         private int displayHeight;
 
         private int frameController = 0;
+        private int featureVectorFrameCounter = 0;
+        private double pi = 3.141592653;
+        //private double[][] featureVector;
+        List<int> featureVector = new List<int>();
+        List<List<int>> TrainingSequence = new List<List<int>>();
+        private int gestureCounter = 0;
+        private int gestureStartFlag = 0;
 
         /// <summary>
         /// List of colors for each body tracked
@@ -141,6 +149,18 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
         /// </summary>
+        struct point3DDouble
+        {
+            public double X;
+            public double Y;
+            public double Z;
+            public point3DDouble(double a, double b, double c)
+            {
+                X = a;
+                Y = b;
+                Z = c;
+            }
+        }
         public MainWindow()
         {
             // one sensor is currently supported
@@ -314,17 +334,19 @@ namespace Microsoft.Samples.Kinect.BodyBasics
         /// <param name="e">event arguments</param>
 
         //private 
-        CameraSpacePoint getVector(CameraSpacePoint a, CameraSpacePoint b)
-        {
 
-            CameraSpacePoint returnValue = new CameraSpacePoint();
+        
+
+        point3DDouble getVector(point3DDouble a, point3DDouble b)
+        {
+            point3DDouble returnValue = new point3DDouble();
             returnValue.X = b.X - a.X;
             returnValue.Y = b.Y - a.Y;
             returnValue.Z = b.Z - a.Z;
             return returnValue;
         }
 
-        double getAngle(CameraSpacePoint v1, CameraSpacePoint v2)
+        double getAngle(point3DDouble v1, point3DDouble v2)
         {
             double dotProduct = (v1.X * v2.X) + (v1.Y * v2.Y) + (v1.Z * v2.Z);
             double mag1 = (v1.X * v1.X) + (v1.Y * v1.Y) + (v1.Z * v1.Z);
@@ -332,16 +354,31 @@ namespace Microsoft.Samples.Kinect.BodyBasics
             mag1 = Math.Sqrt(mag1);
             mag2 = Math.Sqrt(mag2);
             double angle = Math.Acos(dotProduct / (mag1 * mag2));
+            angle = angle * 180 / pi;
             return angle;
         }
+        double returnAngleBetweenJoints(CameraSpacePoint a, CameraSpacePoint b, CameraSpacePoint c)
+        {
+            point3DDouble vector1 = new point3DDouble();
+            point3DDouble vector2 = new point3DDouble();
+            vector1 = getVector(new point3DDouble(a.X, a.Y, a.Z), new point3DDouble(b.X, b.Y, b.Z));
+            vector2 = getVector(new point3DDouble(a.X, a.Y, a.Z), new point3DDouble(c.X, c.Y, c.Z));
+
+            double returnValue = getAngle(vector1, vector2);
+
+            return returnValue;
+        }
+
+        
         private void Reader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
         {
             frameController++;
             if (frameController % 3 == 0) return;
+            
             //Vector4 vector1 = new Vector4();
             //Vector vector2 = new Vector(45, 70);
             //Double angleBetween = 120;
-            
+
             //// angleBetween is approximately equal to 0.9548
             ////angleBetween = Vector.AngleBetween(vector1, vector2);
 
@@ -352,12 +389,16 @@ namespace Microsoft.Samples.Kinect.BodyBasics
             //    Console.WriteLine(angleBetween);
             //    flagValue = 1;
             //}
-            
+
 
 
             bool dataReceived = false;
 
-            
+            //point3DDouble v1 = new point3DDouble(4.5, 4.1, -5.4);
+            //point3DDouble v2 = new point3DDouble(3, -2, 0);
+
+            //point3DDouble vector1 = getVector(v1, v2);
+            //double angle = getAngle(new point3DDouble(-5,-4,-4), new point3DDouble(-1,4,-4));
 
             using (BodyFrame bodyFrame = e.FrameReference.AcquireFrame())
             {
@@ -407,10 +448,15 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                 {
                     // Draw a transparent background to set the render size
                     dc.DrawRectangle(Brushes.Black, null, new Rect(0.0, 0.0, this.displayWidth, this.displayHeight));
+                    //dc.DrawRectangle(Brushes.Red, null, new Rect(2.0, 2.0, 50, 20));
 
+                    
+                    //dc.DrawText("";
                     int penIndex = 0;
                     if (body != null && this.bodyTracked && body.IsTracked)
                     {
+                        //Console.WriteLine(vector1.X + " " + );
+
                         Pen drawPen = this.bodyColors[penIndex++];
 
                         if (body.IsTracked)
@@ -421,12 +467,14 @@ namespace Microsoft.Samples.Kinect.BodyBasics
                             CameraSpacePoint FootLeft = joints[JointType.FootLeft].Position;
                             CameraSpacePoint handRight = joints[JointType.HandRight].Position;
                             CameraSpacePoint shoulderRight = joints[JointType.ShoulderRight].Position;
+                            CameraSpacePoint shoulderLeft = joints[JointType.ShoulderLeft].Position;
                             CameraSpacePoint elbowRight = joints[JointType.ElbowRight].Position;
                             CameraSpacePoint handLeft = joints[JointType.HandLeft].Position;
                             CameraSpacePoint elbowLeft = joints[JointType.ElbowLeft].Position;
                             CameraSpacePoint spineBase = joints[JointType.SpineBase].Position;
-                            
-                            
+                            CameraSpacePoint spineShoulder = joints[JointType.SpineShoulder].Position;
+
+
 
                             this.DrawClippedEdges(body, dc);
 
@@ -459,23 +507,85 @@ namespace Microsoft.Samples.Kinect.BodyBasics
 
 
 
-                            if (body.HandRightState == HandState.Closed)
-                            {
-                                Console.WriteLine(handRight.X+ " " + handRight.Y + " " + handRight.Z);
-                            }
-                                float headToSpineDistance = Head.Y - spineBase.Y;
-                                float SpineToFootDistance = spineBase.Y - FootLeft.Y;
+                            
+                            float headToSpineDistance = Head.Y - spineBase.Y;
+                            float SpineToFootDistance = spineBase.Y - FootLeft.Y;
 
-                                float ratio = headToSpineDistance / SpineToFootDistance;
+                            float ratio = headToSpineDistance / SpineToFootDistance;
 
+                            string ShowOnScreen = "";
                             //Console.WriteLine(ratio);
-                            if (ratio < 1.3 && ratio >= 0.5) Console.WriteLine("Standing");
-                            else if (ratio <0.5) Console.WriteLine("Lying down");
-                            else if (ratio > 1.3) Console.WriteLine("Sitting");
-                                //Console.WriteLine("spineXYX " + spineBase.X + " " + spineBase.Y + " " + spineBase.Z);
-                                //Console.WriteLine("FootLeftXYZ " + FootLeft.X + " " + FootLeft.Y + " " + FootLeft.Z);
-                            //}
+                            if (ratio < 1.3 && ratio >= 0.5) ShowOnScreen = "Standing";
+                            else if (ratio < 0.5) ShowOnScreen = "Lying Down";
+                            else if (ratio > 1.3) ShowOnScreen = "Sitting";
 
+                            //FormattedText formattedText = new FormattedText(ShowOnScreen, CultureInfo.GetCultureInfo("en-us"), FlowDirection.LeftToRight, new Typeface("Verdana"), 32, Brushes.White);
+
+
+                            if (body.HandLeftState == HandState.Closed) gestureStartFlag = 1;
+
+                            if (gestureStartFlag == 1)
+                            {
+                                //System.Threading.Thread.Sleep(3000);
+
+                                double angleBetweenRightHand = returnAngleBetweenJoints(elbowRight, shoulderRight, handRight);
+                                double angleBetweenLeftHand = returnAngleBetweenJoints(elbowLeft, shoulderLeft, handLeft);
+
+                                double angleBetweenLeftSpine = returnAngleBetweenJoints(shoulderRight, spineShoulder, elbowRight);
+                                double angleBetweenRightSpine = returnAngleBetweenJoints(shoulderLeft, spineShoulder, elbowLeft);
+
+
+                                featureVector.Add((int)angleBetweenRightHand);
+                                featureVector.Add((int)angleBetweenLeftHand);
+                                featureVector.Add((int)angleBetweenLeftSpine);
+                                featureVector.Add((int)angleBetweenRightSpine);
+
+                                //featureVector[gestureCounter][featureVectorFrameCounter * 4] = angleBetweenRightHand;
+                                //featureVector[gestureCounter][(featureVectorFrameCounter * 4) + 1] = angleBetweenLeftHand;
+                                //featureVector[gestureCounter][(featureVectorFrameCounter * 4) + 2] = angleBetweenLeftSpine;
+                                //featureVector[gestureCounter][(featureVectorFrameCounter * 4) + 3] = angleBetweenRightSpine;
+                                featureVectorFrameCounter++;
+                                if (gestureCounter < 40)
+                                {
+                                    FormattedText formattedText = new FormattedText("Performing Gesture", CultureInfo.GetCultureInfo("en-us"), FlowDirection.LeftToRight, new Typeface("Verdana"), 32, Brushes.White);
+                                    dc.DrawText(formattedText, new Point(3, 3));
+
+                                }
+                                if (featureVectorFrameCounter > 20 && gestureCounter < 40)
+                                {
+
+                                    for (int i = 0; i<featureVector.Count; i++)
+                                        File.AppendAllText(@"Resources\TrainingSequences.txt", featureVector[i] + " ");
+                                    File.AppendAllText(@"Resources\TrainingSequences.txt", Environment.NewLine);
+                                    File.AppendAllText(@"Resources\TrainingLabels.txt", "2" + Environment.NewLine);
+
+                                    featureVectorFrameCounter = 0;
+                                    gestureCounter++;
+                                    featureVector.Clear();
+                                }
+                                if (gestureCounter == 40)
+                                {
+                                    FormattedText formattedText2 = new FormattedText("Gesture Training Ended", CultureInfo.GetCultureInfo("en-us"), FlowDirection.LeftToRight, new Typeface("Verdana"), 32, Brushes.White);
+                                    dc.DrawText(formattedText2, new Point(3, 3));
+                                    //String sequenceFile = @"Resources\TrainingSequences.txt";
+                                    //String labelFile = @"Resources\TrainingLabels.txt";
+
+
+                                    ////using (StreamWriter sw = new StreamWriter(sequenceFile, true))
+                                    ////{
+                                    //    for (int i = 0; i < TrainingSequence.Count; i++)
+                                    //    {
+                                    //        //if(i > 1 && trainingLabels[i] != trainingLabels[i]) Console.WriteLine();
+                                    //        for (int j = 0; j < TrainingSequence[i].Count; j++)
+                                    //            File.AppendAllText(@"Resources\TrainingSequences.txt", TrainingSequence[i][j] + " ");
+
+                                    //    //sw.Write(TrainingSequence[i][j].ToString() + " ");
+                                    //        File.AppendAllText(@"Resources\TrainingSequences.txt", Environment.NewLine);
+                                    //    }
+                                    ////}
+                                }
+                                //make feature vector 20 frames eache frame has 4 angles start end calculation...
+                            }
                         }
                     }
 
